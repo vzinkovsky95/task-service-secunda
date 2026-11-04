@@ -13,9 +13,10 @@ type errorBody struct {
 }
 
 type errorPayload struct {
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	RequestID string `json:"request_id"`
+	Code      string         `json:"code"`
+	Message   string         `json:"message"`
+	RequestID string         `json:"request_id"`
+	Details   map[string]any `json:"details,omitempty"`
 }
 
 func WriteJSON(w http.ResponseWriter, status int, value any) {
@@ -25,9 +26,14 @@ func WriteJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func WriteError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
+	writeErrorWithDetails(w, r, status, code, message, nil)
+}
+
+func writeErrorWithDetails(w http.ResponseWriter, r *http.Request, status int, code, message string, details map[string]any) {
 	WriteJSON(w, status, errorBody{Error: errorPayload{
 		Code:      code,
 		Message:   message,
 		RequestID: RequestID(r.Context()),
+		Details:   details,
 	}})
 }

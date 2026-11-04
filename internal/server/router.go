@@ -9,6 +9,7 @@ import (
 
 	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
 	"github.com/vzinkovsky95/task-service-secunda/internal/httpx"
+	"github.com/vzinkovsky95/task-service-secunda/internal/task"
 	"github.com/vzinkovsky95/task-service-secunda/internal/team"
 	"github.com/vzinkovsky95/task-service-secunda/internal/user"
 )
@@ -31,8 +32,14 @@ func New(deps Deps) http.Handler {
 	}
 	user.NewHandler(users).Routes(mux)
 
-	teams := team.NewService(deps.DB, team.NewRepository())
+	teamRepo := team.NewRepository()
+	taskRepo := task.NewRepository()
+
+	teams := team.NewService(deps.DB, teamRepo, taskRepo)
 	team.NewHandler(teams).Routes(mux, authed)
+
+	tasks := task.NewService(deps.DB, taskRepo, teamRepo)
+	task.NewHandler(tasks).Routes(mux, authed)
 
 	return httpx.Chain(unmatched{mux},
 		httpx.WithRequestID,

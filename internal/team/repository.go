@@ -2,6 +2,8 @@ package team
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -42,6 +44,23 @@ func (r *Repository) Team(ctx context.Context, q db.Querier, id uint64) (Team, e
 	return t, err
 }
 
+func (r *Repository) ShareTeam(ctx context.Context, q db.Querier, teamID uint64) error {
+	return r.lockTeam(ctx, q, teamID, "FOR SHARE")
+}
+
+func (r *Repository) LockTeam(ctx context.Context, q db.Querier, teamID uint64) error {
+	return r.lockTeam(ctx, q, teamID, "FOR UPDATE")
+}
+
+func (r *Repository) lockTeam(ctx context.Context, q db.Querier, teamID uint64, lock string) error {
+	var id uint64
+	err := q.QueryRowContext(ctx, "SELECT id FROM teams WHERE id = ? "+lock, teamID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrTeamNotFound
+	}
+	return err
+}
+
 func (r *Repository) AddMember(ctx context.Context, q db.Querier, teamID, userID uint64, role Role) error {
 	_, err := q.ExecContext(ctx,
 		"INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)", teamID, userID, string(role))
@@ -60,6 +79,23 @@ func (r *Repository) RemoveMember(ctx context.Context, q db.Querier, teamID, use
 }
 
 func (r *Repository) LockRoles(ctx context.Context, q db.Querier, teamID uint64, userIDs ...uint64) (map[uint64]Role, error) {
+	return r.roles(ctx, q, teamID, "FOR UPDATE", userIDs)
+}
+
+func (r *Repository) ShareRoles(ctx context.Context, q db.Querier, teamID uint64, userIDs ...uint64) (map[uint64]Role, error) {
+	return r.roles(ctx, q, teamID, "FOR SHARE", userIDs)
+}
+
+func (r *Repository) RoleOf(ctx context.Context, q db.Querier, teamID, userID uint64) (Role, bool, error) {
+	var role string
+	err := q.QueryRowContext(ctx, "SELECT role FROM team_members WHERE team_id = ? AND user_id = ?", teamID, userID).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return Role(role), err == nil, err
+}
+
+func (r *Repository) roles(ctx context.Context, q db.Querier, teamID uint64, lock string, userIDs []uint64) (map[uint64]Role, error) {
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(userIDs)), ",")
 	args := []any{teamID}
 	for _, id := range userIDs {
@@ -67,7 +103,7 @@ func (r *Repository) LockRoles(ctx context.Context, q db.Querier, teamID uint64,
 	}
 
 	rows, err := q.QueryContext(ctx,
-		"SELECT user_id, role FROM team_members WHERE team_id = ? AND user_id IN ("+placeholders+") ORDER BY user_id FOR UPDATE",
+		"SELECT user_id, role FROM team_members WHERE team_id = ? AND user_id IN ("+placeholders+") ORDER BY user_id "+lock,
 		args...)
 	if err != nil {
 		return nil, err

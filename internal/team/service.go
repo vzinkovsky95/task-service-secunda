@@ -2,6 +2,12 @@
 // (не участник -> 404), затем право действующего (-> 403), и только потом
 // поиск целевого пользователя, чтобы без права нельзя было выяснять, какие
 // email зарегистрированы. Роли читаются под блокировкой внутри транзакции.
+//
+// Порядок блокировок общий с пакетом task: строка команды, затем строки
+// участников, затем строки задач. Удаление участника берёт команду FOR UPDATE и
+// не пересекается с созданием и обновлением задач; остальные операции над
+// участниками берут её FOR SHARE, потому что вставка в team_members и так
+// берёт эту строку по внешнему ключу, и брать её позже значит создать цикл.
 
 package team
 
@@ -18,13 +24,18 @@ import (
 
 const maxNameRunes = 255
 
-type Service struct {
-	pool *sql.DB
-	repo *Repository
+type TaskReleaser interface {
+	ReleaseAssignee(ctx context.Context, tx *sql.Tx, teamID, userID, actorID uint64) error
 }
 
-func NewService(pool *sql.DB, repo *Repository) *Service {
-	return &Service{pool: pool, repo: repo}
+type Service struct {
+	pool  *sql.DB
+	repo  *Repository
+	tasks TaskReleaser
+}
+
+func NewService(pool *sql.DB, repo *Repository, tasks TaskReleaser) *Service {
+	return &Service{pool: pool, repo: repo, tasks: tasks}
 }
 
 type MemberRole struct {
@@ -75,13 +86,16 @@ func (s *Service) Invite(ctx context.Context, actorID, teamID uint64, email stri
 
 	var invited MemberRole
 	err := db.InTx(ctx, s.pool, func(tx *sql.Tx) error {
+		if err := s.repo.ShareTeam(ctx, tx, teamID); err != nil {
+			return err
+		}
 		roles, err := s.repo.LockRoles(ctx, tx, teamID, actorID)
 		if err != nil {
 			return err
 		}
 		actorRole, ok := roles[actorID]
 		if !ok {
-			return errTeamNotFound
+			return ErrTeamNotFound
 		}
 		if !canInvite(actorRole, role) {
 			return apperr.New(apperr.Forbidden, "forbidden", "your role cannot invite with this role")
@@ -114,13 +128,16 @@ func (s *Service) ChangeRole(ctx context.Context, actorID, teamID, targetID uint
 	}
 
 	err := db.InTx(ctx, s.pool, func(tx *sql.Tx) error {
+		if err := s.repo.ShareTeam(ctx, tx, teamID); err != nil {
+			return err
+		}
 		roles, err := s.repo.LockRoles(ctx, tx, teamID, actorID, targetID)
 		if err != nil {
 			return err
 		}
 		actorRole, ok := roles[actorID]
 		if !ok {
-			return errTeamNotFound
+			return ErrTeamNotFound
 		}
 		if !canChangeRoles(actorRole) {
 			return apperr.New(apperr.Forbidden, "forbidden", "only the owner can change roles")
@@ -142,13 +159,16 @@ func (s *Service) ChangeRole(ctx context.Context, actorID, teamID, targetID uint
 
 func (s *Service) RemoveMember(ctx context.Context, actorID, teamID, targetID uint64) error {
 	return db.InTx(ctx, s.pool, func(tx *sql.Tx) error {
+		if err := s.repo.LockTeam(ctx, tx, teamID); err != nil {
+			return err
+		}
 		roles, err := s.repo.LockRoles(ctx, tx, teamID, actorID, targetID)
 		if err != nil {
 			return err
 		}
 		actorRole, ok := roles[actorID]
 		if !ok {
-			return errTeamNotFound
+			return ErrTeamNotFound
 		}
 		if !canRemoveAnyone(actorRole) {
 			return apperr.New(apperr.Forbidden, "forbidden", "your role cannot remove members")
@@ -163,11 +183,13 @@ func (s *Service) RemoveMember(ctx context.Context, actorID, teamID, targetID ui
 		if !canRemove(actorRole, targetRole) {
 			return apperr.New(apperr.Forbidden, "forbidden", "your role cannot remove this member")
 		}
+		if err := s.tasks.ReleaseAssignee(ctx, tx, teamID, targetID, actorID); err != nil {
+			return err
+		}
 		return s.repo.RemoveMember(ctx, tx, teamID, targetID)
 	})
 }
 
-var (
-	errTeamNotFound   = apperr.New(apperr.NotFound, "team_not_found", "team not found")
-	errMemberNotFound = apperr.New(apperr.NotFound, "member_not_found", "member not found")
-)
+var ErrTeamNotFound = apperr.New(apperr.NotFound, "team_not_found", "team not found")
+
+var errMemberNotFound = apperr.New(apperr.NotFound, "member_not_found", "member not found")

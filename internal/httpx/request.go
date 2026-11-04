@@ -45,7 +45,7 @@ func PathID(r *http.Request, name string) (uint64, error) {
 func WriteServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	var appErr *apperr.Error
 	if errors.As(err, &appErr) {
-		WriteError(w, r, statuses[appErr.Kind], appErr.Code, appErr.Message)
+		writeErrorWithDetails(w, r, statuses[appErr.Kind], appErr.Code, appErr.Message, appErr.Details)
 		return
 	}
 	Log(r.Context()).Error("request failed", "error", err)

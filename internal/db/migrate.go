@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -39,8 +40,11 @@ func Migrate(ctx context.Context, cfg *mysql.Config, logger *slog.Logger) error 
 	defer conn.Close()
 
 	var locked int
-	if err := conn.QueryRowContext(ctx, "SELECT GET_LOCK(?, 30)", migrateLockName).Scan(&locked); err != nil || locked != 1 {
-		return fmt.Errorf("acquire migration lock: %v", err)
+	if err := conn.QueryRowContext(ctx, "SELECT GET_LOCK(?, 30)", migrateLockName).Scan(&locked); err != nil {
+		return fmt.Errorf("acquire migration lock: %w", err)
+	}
+	if locked != 1 {
+		return errors.New("acquire migration lock: timed out")
 	}
 	defer conn.ExecContext(context.WithoutCancel(ctx), "SELECT RELEASE_LOCK(?)", migrateLockName)
 
