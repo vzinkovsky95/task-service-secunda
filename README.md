@@ -1,6 +1,6 @@
 # Task Service
 
-[![CI](https://github.com/vzinkovsky95/task-service-secunda/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vzinkovsky95/task-service-secunda/actions/workflows/ci.yml)
+[![CI](https://github.com/vzinkovsky95/task-service-secunda/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vzinkovsky95/task-service-secunda/actions/workflows/ci.yml) [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/vzinkovsky95/task-service-secunda)
 
 REST API для управления задачами в командах: роли (владелец, администратор, участник), история изменений
 каждой задачи, комментарии, кеш списка задач в Redis и SQL-отчёт по команде.
