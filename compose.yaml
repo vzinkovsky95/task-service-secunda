@@ -77,12 +77,12 @@ services:
   tools: &go-tool
     image: golang:1.26
     profiles: ["tools"]
-    mem_limit: 768m
+    mem_limit: 1g
     cpus: 1
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /src
     environment:
-      GOFLAGS: -buildvcs=false
+      GOFLAGS: -buildvcs=false -p=2
       GOCACHE: /go/cache
       HOME: /tmp
     volumes:
@@ -96,7 +96,7 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      GOFLAGS: -buildvcs=false -tags=integration
+      GOFLAGS: -buildvcs=false -tags=integration -p=2
       GOCACHE: /go/cache
       HOME: /tmp
       MYSQL_HOST: mysql

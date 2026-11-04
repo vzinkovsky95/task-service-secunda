@@ -11,6 +11,10 @@ import (
 	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
 )
 
+type Router interface {
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}
+
 const maxBodyBytes = 1 << 20
 
 var statuses = map[apperr.Kind]int{

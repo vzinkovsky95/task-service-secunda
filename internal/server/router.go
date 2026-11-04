@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/vzinkovsky95/task-service-secunda/api"
 	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
 	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/httpx"
@@ -31,9 +32,27 @@ type Deps struct {
 	APIPerMinute   int
 }
 
+type routeTable struct {
+	mux      *http.ServeMux
+	patterns []string
+}
+
+func (t *routeTable) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	t.patterns = append(t.patterns, pattern)
+	t.mux.HandleFunc(pattern, handler)
+}
+
 func New(deps Deps) http.Handler {
-	mux := http.NewServeMux()
+	handler, _ := build(deps)
+	return handler
+}
+
+func build(deps Deps) (http.Handler, []string) {
+	routes := &routeTable{mux: http.NewServeMux()}
+	mux := routes
 	mux.HandleFunc("GET /healthz", health(deps.DB))
+	mux.HandleFunc("GET /openapi.yaml", api.SpecHandler())
+	mux.HandleFunc("GET /docs", api.UIHandler())
 
 	perMinute := func(scope string, limit int) ratelimit.Rule {
 		return ratelimit.Rule{Scope: scope, Limit: limit, Window: time.Minute}
@@ -62,11 +81,12 @@ func New(deps Deps) http.Handler {
 	reports := stats.NewService(deps.DB, teamRepo, stats.NewRepository(), time.Now)
 	stats.NewHandler(reports).Routes(mux, authed)
 
-	return httpx.Chain(unmatched{mux},
+	handler := httpx.Chain(unmatched{routes.mux},
 		httpx.WithRequestID,
 		httpx.WithAccessLog(deps.Logger),
 		httpx.WithRecover,
 	)
+	return handler, routes.patterns
 }
 
 func health(pool *sql.DB) http.HandlerFunc {

@@ -2,6 +2,10 @@ package config
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -106,5 +110,36 @@ func TestLoadRejectsBadRateLimitSettings(t *testing.T) {
 				t.Fatalf("%s=%q accepted", key, value)
 			}
 		})
+	}
+}
+
+func readRepoFile(t *testing.T, name string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join("..", "..", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(content)
+}
+
+func TestEveryEnvironmentVariableIsDocumentedInTheREADME(t *testing.T) {
+	readme := readRepoFile(t, "README.md")
+	source := readRepoFile(t, "internal/config/config.go")
+
+	names := regexp.MustCompile(`"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"`).FindAllStringSubmatch(source, -1)
+	if len(names) < 10 {
+		t.Fatalf("found only %d variables in config.go, the scanner is broken", len(names))
+	}
+	for _, match := range names {
+		if !strings.Contains(readme, "`"+match[1]+"`") {
+			t.Errorf("config.go reads %s but the README does not describe it", match[1])
+		}
+	}
+
+	example := regexp.MustCompile(`(?m)^([A-Z][A-Z0-9_]+)=`).FindAllStringSubmatch(readRepoFile(t, ".env.example"), -1)
+	for _, match := range example {
+		if !strings.Contains(readme, "`"+match[1]+"`") {
+			t.Errorf(".env.example sets %s but the README does not describe it", match[1])
+		}
 	}
 }

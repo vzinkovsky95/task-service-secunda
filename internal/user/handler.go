@@ -15,7 +15,7 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, limitRegister, limitLogin func(http.HandlerFunc) http.HandlerFunc) {
+func (h *Handler) Routes(mux httpx.Router, limitRegister, limitLogin func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("POST /api/v1/register", limitRegister(h.register))
 	mux.HandleFunc("POST /api/v1/login", limitLogin(h.login))
 }

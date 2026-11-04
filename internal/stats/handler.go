@@ -16,7 +16,7 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, authed func(http.HandlerFunc) http.HandlerFunc) {
+func (h *Handler) Routes(mux httpx.Router, authed func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("GET /api/v1/teams/{team_id}/stats", authed(h.get))
 }
 

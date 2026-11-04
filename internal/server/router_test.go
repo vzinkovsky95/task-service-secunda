@@ -71,15 +71,23 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
 }
 
-func newRouterWithLimits(client *redis.Client, authPerMinute, apiPerMinute int) http.Handler {
-	return New(Deps{
+func testDepsWith(client *redis.Client, authPerMinute, apiPerMinute int) Deps {
+	return Deps{
 		Logger:        testLogger(),
 		Tokens:        auth.NewTokens("secret", time.Hour),
 		Lists:         cache.NewTaskLists(client),
 		Limiter:       ratelimit.NewLimiter(client, frozenNow),
 		AuthPerMinute: authPerMinute,
 		APIPerMinute:  apiPerMinute,
-	})
+	}
+}
+
+func testDeps() Deps {
+	return testDepsWith(cache.NewClient("127.0.0.1:1", cache.NewGuard(testLogger())), 10, 120)
+}
+
+func newRouterWithLimits(client *redis.Client, authPerMinute, apiPerMinute int) http.Handler {
+	return New(testDepsWith(client, authPerMinute, apiPerMinute))
 }
 
 func TestProtectedRoutesRequireToken(t *testing.T) {
