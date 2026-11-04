@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
+	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 )
 
 func TestUnknownRouteReturnsJSONError(t *testing.T) {
@@ -60,6 +61,7 @@ func newTestRouter() http.Handler {
 	return New(Deps{
 		Logger: slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		Tokens: auth.NewTokens("secret", time.Hour),
+		Lists:  cache.NewTaskLists(cache.NewClient("127.0.0.1:1")),
 	})
 }
 

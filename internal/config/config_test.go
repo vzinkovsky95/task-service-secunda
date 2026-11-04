@@ -13,6 +13,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("MYSQL_DATABASE", "app")
 	t.Setenv("MYSQL_USER", "user")
 	t.Setenv("MYSQL_PASSWORD", "pass")
+	t.Setenv("REDIS_ADDR", "redis:6379")
 }
 
 func TestLoadDefaults(t *testing.T) {
@@ -34,7 +35,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadRequiresSecrets(t *testing.T) {
-	for _, key := range []string{"JWT_SECRET", "MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD"} {
+	for _, key := range []string{"JWT_SECRET", "MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD", "REDIS_ADDR"} {
 		t.Run(key, func(t *testing.T) {
 			setRequired(t)
 			t.Setenv(key, "")

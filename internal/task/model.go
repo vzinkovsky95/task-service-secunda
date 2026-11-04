@@ -2,6 +2,8 @@ package task
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -85,4 +87,20 @@ type ListFilter struct {
 	AssigneeID *uint64
 	Limit      int
 	Offset     int
+}
+
+func (f ListFilter) cacheKey() string {
+	status, assignee := "-", "-"
+	if f.Status != "" {
+		status = string(f.Status)
+	}
+	if f.AssigneeID != nil {
+		assignee = strconv.FormatUint(*f.AssigneeID, 10)
+	}
+	return fmt.Sprintf("status=%s:assignee=%s:limit=%d:offset=%d", status, assignee, f.Limit, f.Offset)
+}
+
+type cachedList struct {
+	Tasks []Task
+	Total int
 }

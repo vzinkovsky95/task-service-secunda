@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/vzinkovsky95/task-service-secunda/internal/apperr"
+	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
 )
 
 const maxBodyBytes = 1 << 20
@@ -48,6 +49,6 @@ func WriteServiceError(w http.ResponseWriter, r *http.Request, err error) {
 		writeErrorWithDetails(w, r, statuses[appErr.Kind], appErr.Code, appErr.Message, appErr.Details)
 		return
 	}
-	Log(r.Context()).Error("request failed", "error", err)
+	logx.From(r.Context()).Error("request failed", "error", err)
 	WriteError(w, r, http.StatusInternalServerError, "internal", "internal error")
 }

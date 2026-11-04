@@ -28,14 +28,19 @@ type TaskReleaser interface {
 	ReleaseAssignee(ctx context.Context, tx *sql.Tx, teamID, userID, actorID uint64) error
 }
 
+type ListInvalidator interface {
+	InvalidateTeam(ctx context.Context, teamID uint64)
+}
+
 type Service struct {
 	pool  *sql.DB
 	repo  *Repository
 	tasks TaskReleaser
+	lists ListInvalidator
 }
 
-func NewService(pool *sql.DB, repo *Repository, tasks TaskReleaser) *Service {
-	return &Service{pool: pool, repo: repo, tasks: tasks}
+func NewService(pool *sql.DB, repo *Repository, tasks TaskReleaser, lists ListInvalidator) *Service {
+	return &Service{pool: pool, repo: repo, tasks: tasks, lists: lists}
 }
 
 type MemberRole struct {
@@ -158,7 +163,7 @@ func (s *Service) ChangeRole(ctx context.Context, actorID, teamID, targetID uint
 }
 
 func (s *Service) RemoveMember(ctx context.Context, actorID, teamID, targetID uint64) error {
-	return db.InTx(ctx, s.pool, func(tx *sql.Tx) error {
+	err := db.InTx(ctx, s.pool, func(tx *sql.Tx) error {
 		if err := s.repo.LockTeam(ctx, tx, teamID); err != nil {
 			return err
 		}
@@ -188,6 +193,11 @@ func (s *Service) RemoveMember(ctx context.Context, actorID, teamID, targetID ui
 		}
 		return s.repo.RemoveMember(ctx, tx, teamID, targetID)
 	})
+	if err != nil {
+		return err
+	}
+	s.lists.InvalidateTeam(ctx, teamID)
+	return nil
 }
 
 var ErrTeamNotFound = apperr.New(apperr.NotFound, "team_not_found", "team not found")

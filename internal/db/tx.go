@@ -10,10 +10,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+
+	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
 )
 
 const (
@@ -35,7 +36,7 @@ func InTx(ctx context.Context, pool *sql.DB, fn func(tx *sql.Tx) error) error {
 		if !IsDeadlock(err) || attempt == maxTxAttempts {
 			return err
 		}
-		slog.Warn("transaction deadlock, retrying", "attempt", attempt)
+		logx.From(ctx).Warn("transaction deadlock, retrying", "attempt", attempt)
 
 		select {
 		case <-ctx.Done():

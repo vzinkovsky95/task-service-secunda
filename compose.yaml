@@ -32,7 +32,7 @@ services:
     restart: unless-stopped
     mem_limit: 64m
     cpus: 0.25
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "32mb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "32mb", "--maxmemory-policy", "volatile-lru"]
     ports:
       - "127.0.0.1:${REDIS_PORT:?set in .env}:6379"
     healthcheck:
@@ -56,6 +56,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       JWT_SECRET: ${JWT_SECRET:?set in .env}
       JWT_TTL: ${JWT_TTL:-24h}
+      REDIS_ADDR: redis:6379
       MYSQL_HOST: mysql
       MYSQL_PORT: "3306"
       MYSQL_DATABASE: ${MYSQL_DATABASE:?set in .env}

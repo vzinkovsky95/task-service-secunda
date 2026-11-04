@@ -13,11 +13,14 @@ package task
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/vzinkovsky95/task-service-secunda/internal/apperr"
+	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/db"
+	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
 	"github.com/vzinkovsky95/task-service-secunda/internal/team"
 )
 
@@ -30,10 +33,11 @@ type Service struct {
 	pool    *sql.DB
 	repo    *Repository
 	members *team.Repository
+	lists   *cache.TaskLists
 }
 
-func NewService(pool *sql.DB, repo *Repository, members *team.Repository) *Service {
-	return &Service{pool: pool, repo: repo, members: members}
+func NewService(pool *sql.DB, repo *Repository, members *team.Repository, lists *cache.TaskLists) *Service {
+	return &Service{pool: pool, repo: repo, members: members, lists: lists}
 }
 
 func (s *Service) Create(ctx context.Context, actorID uint64, in CreateInput) (Task, error) {
@@ -73,7 +77,11 @@ func (s *Service) Create(ctx context.Context, actorID uint64, in CreateInput) (T
 		}
 		return s.repo.AddHistory(ctx, tx, id, actorID, creationChanges(created))
 	})
-	return created, err
+	if err != nil {
+		return Task{}, err
+	}
+	s.lists.InvalidateTeam(ctx, in.TeamID)
+	return created, nil
 }
 
 func (s *Service) Update(ctx context.Context, actorID, taskID uint64, in UpdateInput) (Task, error) {
@@ -91,7 +99,9 @@ func (s *Service) Update(ctx context.Context, actorID, taskID uint64, in UpdateI
 	}
 
 	var result Task
+	var changed bool
 	err = db.InTx(ctx, s.pool, func(tx *sql.Tx) error {
+		changed = false
 		if err := s.members.ShareTeam(ctx, tx, teamID); err != nil {
 			return err
 		}
@@ -142,10 +152,19 @@ func (s *Service) Update(ctx context.Context, actorID, taskID uint64, in UpdateI
 		if err := s.repo.AddHistory(ctx, tx, taskID, actorID, changes); err != nil {
 			return err
 		}
-		result, err = s.repo.Get(ctx, tx, taskID)
-		return err
+		if result, err = s.repo.Get(ctx, tx, taskID); err != nil {
+			return err
+		}
+		changed = true
+		return nil
 	})
-	return result, err
+	if err != nil {
+		return Task{}, err
+	}
+	if changed {
+		s.lists.InvalidateTeam(ctx, teamID)
+	}
+	return result, nil
 }
 
 func (s *Service) List(ctx context.Context, actorID uint64, f ListFilter) ([]Task, int, error) {
@@ -156,7 +175,27 @@ func (s *Service) List(ctx context.Context, actorID uint64, f ListFilter) ([]Tas
 	if !ok {
 		return nil, 0, team.ErrTeamNotFound
 	}
-	return s.repo.List(ctx, s.pool, f)
+
+	data, slot := s.lists.Load(ctx, f.TeamID, f.cacheKey())
+	if data != nil {
+		var cached cachedList
+		if err := json.Unmarshal(data, &cached); err == nil {
+			return cached.Tasks, cached.Total, nil
+		}
+		logx.From(ctx).Warn("task list cache entry is corrupt", "team_id", f.TeamID)
+	}
+	return s.listFromDB(ctx, slot, f)
+}
+
+func (s *Service) listFromDB(ctx context.Context, slot cache.Slot, f ListFilter) ([]Task, int, error) {
+	tasks, total, err := s.repo.List(ctx, s.pool, f)
+	if err != nil {
+		return nil, 0, err
+	}
+	if payload, err := json.Marshal(cachedList{Tasks: tasks, Total: total}); err == nil {
+		s.lists.Store(ctx, slot, payload)
+	}
+	return tasks, total, nil
 }
 
 func (s *Service) History(ctx context.Context, actorID, taskID uint64, limit, offset int) ([]HistoryEntry, int, error) {

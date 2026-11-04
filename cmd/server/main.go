@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
+	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/config"
 	"github.com/vzinkovsky95/task-service-secunda/internal/db"
 	"github.com/vzinkovsky95/task-service-secunda/internal/server"
@@ -44,9 +45,17 @@ func run() error {
 	}
 	defer pool.Close()
 
+	redisClient := cache.NewClient(cfg.RedisAddr)
+	defer redisClient.Close()
+
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           server.New(server.Deps{Logger: logger, DB: pool, Tokens: auth.NewTokens(cfg.JWTSecret, cfg.JWTTTL)}),
+		Addr: cfg.HTTPAddr,
+		Handler: server.New(server.Deps{
+			Logger: logger,
+			DB:     pool,
+			Tokens: auth.NewTokens(cfg.JWTSecret, cfg.JWTTTL),
+			Lists:  cache.NewTaskLists(redisClient),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

@@ -12,16 +12,15 @@ import (
 	"net/http"
 	"runtime/debug"
 	"time"
+
+	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
 )
 
 const requestIDHeader = "X-Request-Id"
 
 type ctxKey int
 
-const (
-	requestIDKey ctxKey = iota
-	loggerKey
-)
+const requestIDKey ctxKey = iota
 
 func Chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
 	for i := len(middlewares) - 1; i >= 0; i-- {
@@ -33,13 +32,6 @@ func Chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler)
 func RequestID(ctx context.Context) string {
 	id, _ := ctx.Value(requestIDKey).(string)
 	return id
-}
-
-func Log(ctx context.Context) *slog.Logger {
-	if logger, ok := ctx.Value(loggerKey).(*slog.Logger); ok {
-		return logger
-	}
-	return slog.Default()
 }
 
 func WithRequestID(next http.Handler) http.Handler {
@@ -60,7 +52,7 @@ func WithAccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			reqLogger := logger.With("request_id", RequestID(r.Context()))
 			recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 
-			next.ServeHTTP(recorder, r.WithContext(context.WithValue(r.Context(), loggerKey, reqLogger)))
+			next.ServeHTTP(recorder, r.WithContext(logx.With(r.Context(), reqLogger)))
 
 			reqLogger.Info("request",
 				"method", r.Method,
@@ -77,7 +69,7 @@ func WithRecover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				Log(r.Context()).Error("panic", "value", recovered, "stack", string(debug.Stack()))
+				logx.From(r.Context()).Error("panic", "value", recovered, "stack", string(debug.Stack()))
 				WriteError(w, r, http.StatusInternalServerError, "internal", "internal error")
 			}
 		}()

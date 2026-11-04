@@ -18,6 +18,7 @@ type Config struct {
 	MySQL     *mysql.Config
 	JWTSecret string
 	JWTTTL    time.Duration
+	RedisAddr string
 }
 
 func Load() (Config, error) {
@@ -30,7 +31,7 @@ func Load() (Config, error) {
 	}
 
 	required := map[string]string{}
-	for _, key := range []string{"JWT_SECRET", "MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD"} {
+	for _, key := range []string{"JWT_SECRET", "MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD", "REDIS_ADDR"} {
 		value := os.Getenv(key)
 		if value == "" {
 			return Config{}, fmt.Errorf("%s is required", key)
@@ -39,6 +40,7 @@ func Load() (Config, error) {
 	}
 
 	cfg.JWTSecret = required["JWT_SECRET"]
+	cfg.RedisAddr = required["REDIS_ADDR"]
 
 	ttl, err := time.ParseDuration(getenv("JWT_TTL", "24h"))
 	if err != nil || ttl <= 0 {

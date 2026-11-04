@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
+	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/httpx"
+	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
 	"github.com/vzinkovsky95/task-service-secunda/internal/task"
 	"github.com/vzinkovsky95/task-service-secunda/internal/team"
 	"github.com/vzinkovsky95/task-service-secunda/internal/user"
@@ -18,6 +20,7 @@ type Deps struct {
 	Logger *slog.Logger
 	DB     *sql.DB
 	Tokens *auth.Tokens
+	Lists  *cache.TaskLists
 }
 
 func New(deps Deps) http.Handler {
@@ -35,10 +38,10 @@ func New(deps Deps) http.Handler {
 	teamRepo := team.NewRepository()
 	taskRepo := task.NewRepository()
 
-	teams := team.NewService(deps.DB, teamRepo, taskRepo)
+	teams := team.NewService(deps.DB, teamRepo, taskRepo, deps.Lists)
 	team.NewHandler(teams).Routes(mux, authed)
 
-	tasks := task.NewService(deps.DB, taskRepo, teamRepo)
+	tasks := task.NewService(deps.DB, taskRepo, teamRepo, deps.Lists)
 	task.NewHandler(tasks).Routes(mux, authed)
 
 	return httpx.Chain(unmatched{mux},
@@ -54,7 +57,7 @@ func health(pool *sql.DB) http.HandlerFunc {
 		defer cancel()
 
 		if err := pool.PingContext(ctx); err != nil {
-			httpx.Log(r.Context()).Error("health check failed", "error", err)
+			logx.From(r.Context()).Error("health check failed", "error", err)
 			httpx.WriteError(w, r, http.StatusServiceUnavailable, "unavailable", "database is unavailable")
 			return
 		}
