@@ -3,6 +3,7 @@ package config
 import (
 	"log/slog"
 	"testing"
+	"time"
 )
 
 func setRequired(t *testing.T) {
@@ -49,5 +50,21 @@ func TestLoadRejectsBadLogLevel(t *testing.T) {
 	t.Setenv("LOG_LEVEL", "loud")
 	if _, err := Load(); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestLoadJWTTTL(t *testing.T) {
+	setRequired(t)
+
+	cfg, err := Load()
+	if err != nil || cfg.JWTTTL != 24*time.Hour {
+		t.Fatalf("default ttl = %v, err = %v", cfg.JWTTTL, err)
+	}
+
+	for _, bad := range []string{"soon", "0s", "-1h"} {
+		t.Setenv("JWT_TTL", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("JWT_TTL=%q accepted", bad)
+		}
 	}
 }

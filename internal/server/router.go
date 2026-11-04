@@ -7,16 +7,36 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
 	"github.com/vzinkovsky95/task-service-secunda/internal/httpx"
+	"github.com/vzinkovsky95/task-service-secunda/internal/team"
+	"github.com/vzinkovsky95/task-service-secunda/internal/user"
 )
 
-func New(logger *slog.Logger, pool *sql.DB) http.Handler {
+type Deps struct {
+	Logger *slog.Logger
+	DB     *sql.DB
+	Tokens *auth.Tokens
+}
+
+func New(deps Deps) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", health(pool))
+	mux.HandleFunc("GET /healthz", health(deps.DB))
+
+	authed := auth.Require(deps.Tokens)
+
+	users, err := user.NewService(user.NewRepository(deps.DB), deps.Tokens)
+	if err != nil {
+		panic(err)
+	}
+	user.NewHandler(users).Routes(mux)
+
+	teams := team.NewService(deps.DB, team.NewRepository())
+	team.NewHandler(teams).Routes(mux, authed)
 
 	return httpx.Chain(unmatched{mux},
 		httpx.WithRequestID,
-		httpx.WithAccessLog(logger),
+		httpx.WithAccessLog(deps.Logger),
 		httpx.WithRecover,
 	)
 }

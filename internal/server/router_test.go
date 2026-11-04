@@ -1,16 +1,20 @@
 package server
 
 import (
+	"time"
+
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
 )
 
 func TestUnknownRouteReturnsJSONError(t *testing.T) {
-	handler := New(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
+	handler := newTestRouter()
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/nope", nil))
@@ -36,7 +40,7 @@ func TestUnknownRouteReturnsJSONError(t *testing.T) {
 }
 
 func TestWrongMethodReturnsJSON405(t *testing.T) {
-	handler := New(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
+	handler := newTestRouter()
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/healthz", nil))
@@ -49,5 +53,30 @@ func TestWrongMethodReturnsJSON405(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Type"); got != "application/json" {
 		t.Errorf("content type = %q", got)
+	}
+}
+
+func newTestRouter() http.Handler {
+	return New(Deps{
+		Logger: slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		Tokens: auth.NewTokens("secret", time.Hour),
+	})
+}
+
+func TestProtectedRoutesRequireToken(t *testing.T) {
+	handler := newTestRouter()
+	routes := []struct{ method, path string }{
+		{http.MethodPost, "/api/v1/teams"},
+		{http.MethodGet, "/api/v1/teams"},
+		{http.MethodPost, "/api/v1/teams/1/invite"},
+		{http.MethodPatch, "/api/v1/teams/1/members/2"},
+		{http.MethodDelete, "/api/v1/teams/1/members/2"},
+	}
+	for _, route := range routes {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(route.method, route.path, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s = %d", route.method, route.path, rec.Code)
+		}
 	}
 }

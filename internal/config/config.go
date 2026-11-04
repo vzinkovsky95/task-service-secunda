@@ -17,6 +17,7 @@ type Config struct {
 	LogLevel  slog.Level
 	MySQL     *mysql.Config
 	JWTSecret string
+	JWTTTL    time.Duration
 }
 
 func Load() (Config, error) {
@@ -38,6 +39,12 @@ func Load() (Config, error) {
 	}
 
 	cfg.JWTSecret = required["JWT_SECRET"]
+
+	ttl, err := time.ParseDuration(getenv("JWT_TTL", "24h"))
+	if err != nil || ttl <= 0 {
+		return Config{}, fmt.Errorf("JWT_TTL must be a positive duration")
+	}
+	cfg.JWTTTL = ttl
 
 	cfg.MySQL = mysql.NewConfig()
 	cfg.MySQL.User = required["MYSQL_USER"]

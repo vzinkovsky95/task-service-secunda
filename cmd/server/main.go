@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
 	"github.com/vzinkovsky95/task-service-secunda/internal/config"
 	"github.com/vzinkovsky95/task-service-secunda/internal/db"
 	"github.com/vzinkovsky95/task-service-secunda/internal/server"
@@ -45,7 +46,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           server.New(logger, pool),
+		Handler:           server.New(server.Deps{Logger: logger, DB: pool, Tokens: auth.NewTokens(cfg.JWTSecret, cfg.JWTTTL)}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
