@@ -1,3 +1,6 @@
-.git
 .env
+.git
+.github
 bin
+demo
+scripts
