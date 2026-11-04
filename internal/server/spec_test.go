@@ -41,7 +41,10 @@ func specOperations(doc *openapi3.T) []string {
 
 func TestRoutesMatchTheOpenAPISpecInBothDirections(t *testing.T) {
 	_, patterns := build(testDeps())
-	routes := slices.Clone(patterns)
+	routes := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		routes = append(routes, strings.ReplaceAll(pattern, "{$}", ""))
+	}
 	sort.Strings(routes)
 	spec := specOperations(specDocument(t))
 

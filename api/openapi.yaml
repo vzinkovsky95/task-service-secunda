@@ -45,6 +45,22 @@ security:
   - bearerAuth: []
 
 paths:
+  /:
+    get:
+      tags: [Служебные]
+      operationId: redirectToDocs
+      summary: Перенаправление на документацию
+      description: Корневой адрес ведёт на страницу Swagger UI.
+      security: []
+      responses:
+        "302":
+          description: Перенаправление на `/docs`
+          headers:
+            Location:
+              description: Всегда `/docs`
+              schema:
+                type: string
+
   /healthz:
     get:
       tags: [Служебные]

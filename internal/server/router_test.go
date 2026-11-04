@@ -203,3 +203,19 @@ func TestRateLimitIsSkippedWhenRedisIsDown(t *testing.T) {
 		}
 	}
 }
+
+func TestRootRedirectsToDocs(t *testing.T) {
+	handler := newTestRouter()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/docs" {
+		t.Errorf("GET /: status %d, Location %q", rec.Code, rec.Header().Get("Location"))
+	}
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/no-such-page", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("an unknown path must stay a JSON 404, got %d", rec.Code)
+	}
+}

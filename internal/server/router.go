@@ -50,6 +50,7 @@ func New(deps Deps) http.Handler {
 func build(deps Deps) (http.Handler, []string) {
 	routes := &routeTable{mux: http.NewServeMux()}
 	mux := routes
+	mux.HandleFunc("GET /{$}", redirectToDocs)
 	mux.HandleFunc("GET /healthz", health(deps.DB))
 	mux.HandleFunc("GET /openapi.yaml", api.SpecHandler())
 	mux.HandleFunc("GET /docs", api.UIHandler())
@@ -101,6 +102,10 @@ func health(pool *sql.DB) http.HandlerFunc {
 		}
 		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
+}
+
+func redirectToDocs(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/docs", http.StatusFound)
 }
 
 type unmatched struct {
