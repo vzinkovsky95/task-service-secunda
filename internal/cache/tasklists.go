@@ -14,6 +14,8 @@
 //     открыл старые записи.
 //
 // Любая ошибка Redis считается промахом и пишется в лог: кеш не роняет запрос.
+// Разомкнутый предохранитель отклоняет вызов сразу и без шума в логе: о самом
+// размыкании сообщает предохранитель.
 // Если инвалидацию выполнить не удалось, процесс запоминает команду и повторяет
 // её перед чтением: иначе Redis, вернувшийся с прежними данными, отдал бы
 // устаревший список. Отметка хранит номер неудачи и снимается только после
@@ -33,6 +35,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/vzinkovsky95/task-service-secunda/internal/breaker"
 	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
 )
 
@@ -68,7 +71,7 @@ func (c *TaskLists) Load(ctx context.Context, teamID uint64, filter string) ([]b
 
 	generation, err := c.client.Get(ctx, generationKey(teamID)).Uint64()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		logger.Warn("task list cache unavailable", "op", "generation", "error", err)
+		logUnavailable(ctx, "generation", err)
 		return nil, Slot{}
 	}
 
@@ -83,7 +86,7 @@ func (c *TaskLists) Load(ctx context.Context, teamID uint64, filter string) ([]b
 		logger.Debug("task list cache miss", "team_id", teamID)
 		return nil, slot
 	default:
-		logger.Warn("task list cache unavailable", "op", "get", "error", err)
+		logUnavailable(ctx, "get", err)
 		return nil, Slot{}
 	}
 }
@@ -93,7 +96,7 @@ func (c *TaskLists) Store(ctx context.Context, slot Slot, data []byte) {
 		return
 	}
 	if err := c.client.Set(ctx, slot.key, data, listTTL).Err(); err != nil {
-		logx.From(ctx).Warn("task list cache unavailable", "op", "set", "error", err)
+		logUnavailable(ctx, "set", err)
 	}
 }
 
@@ -105,6 +108,9 @@ func (c *TaskLists) InvalidateTeam(ctx context.Context, teamID uint64) {
 	for attempt := 0; attempt < invalidateAttempts; attempt++ {
 		if err = c.client.Incr(ctx, generationKey(teamID)).Err(); err == nil {
 			return
+		}
+		if errors.Is(err, breaker.ErrOpen) {
+			break
 		}
 	}
 	c.markPending(teamID)
@@ -141,11 +147,18 @@ func (c *TaskLists) settlePending(ctx context.Context, teamID uint64) bool {
 	}
 
 	if err := c.client.Incr(ctx, generationKey(teamID)).Err(); err != nil {
-		logx.From(ctx).Warn("task list cache unavailable", "op", "pending invalidation", "error", err)
+		logUnavailable(ctx, "pending invalidation", err)
 		return false
 	}
 	c.clearPending(teamID, failure)
 	return true
+}
+
+func logUnavailable(ctx context.Context, op string, err error) {
+	if errors.Is(err, breaker.ErrOpen) {
+		return
+	}
+	logx.From(ctx).Warn("task list cache unavailable", "op", op, "error", err)
 }
 
 func generationKey(teamID uint64) string {

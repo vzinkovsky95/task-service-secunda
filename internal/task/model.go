@@ -90,19 +90,23 @@ type ListFilter struct {
 	TeamID     uint64
 	Status     Status
 	AssigneeID *uint64
+	Cursor     *uint64
 	Limit      int
 	Offset     int
 }
 
 func (f ListFilter) cacheKey() string {
-	status, assignee := "-", "-"
+	status, assignee, cursor := "-", "-", "-"
 	if f.Status != "" {
 		status = string(f.Status)
 	}
 	if f.AssigneeID != nil {
 		assignee = strconv.FormatUint(*f.AssigneeID, 10)
 	}
-	return fmt.Sprintf("status=%s:assignee=%s:limit=%d:offset=%d", status, assignee, f.Limit, f.Offset)
+	if f.Cursor != nil {
+		cursor = strconv.FormatUint(*f.Cursor, 10)
+	}
+	return fmt.Sprintf("status=%s:assignee=%s:cursor=%s:limit=%d:offset=%d", status, assignee, cursor, f.Limit, f.Offset)
 }
 
 type cachedList struct {

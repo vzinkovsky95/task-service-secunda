@@ -11,6 +11,7 @@ const (
 	Forbidden
 	NotFound
 	Conflict
+	TooManyRequests
 )
 
 type Error struct {

@@ -3,6 +3,7 @@ package httpx
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/vzinkovsky95/task-service-secunda/internal/apperr"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -66,5 +67,24 @@ func TestPanicBecomesJSONError(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "boom") {
 		t.Error("panic value leaked into response")
+	}
+}
+
+func TestTooManyRequestsMapsTo429WithDetails(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+
+	WriteServiceError(rec, req, apperr.New(apperr.TooManyRequests, "rate_limited", "slow down").
+		WithDetails(map[string]any{"retry_after_seconds": 7}))
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var body errorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error.Code != "rate_limited" || body.Error.Details["retry_after_seconds"] != float64(7) {
+		t.Errorf("body = %s", rec.Body.String())
 	}
 }

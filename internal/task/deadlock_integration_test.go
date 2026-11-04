@@ -9,10 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
-
 	"github.com/vzinkovsky95/task-service-secunda/internal/apperr"
-	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/task"
 	"github.com/vzinkovsky95/task-service-secunda/internal/team"
 	"github.com/vzinkovsky95/task-service-secunda/internal/testdb"
@@ -28,7 +25,7 @@ func TestReassignRacingMemberRemovalDoesNotDeadlock(t *testing.T) {
 	pool := testdb.New(t)
 	seed := testdb.NewSeeder(t, pool)
 
-	lists := cache.NewTaskLists(cache.NewClient(miniredis.RunT(t).Addr()))
+	lists := testdb.NewLists(t)
 	teamRepo, taskRepo := team.NewRepository(), task.NewRepository()
 	teams := team.NewService(pool, teamRepo, taskRepo, lists)
 	tasks := task.NewService(pool, taskRepo, teamRepo, lists)

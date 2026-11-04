@@ -108,3 +108,27 @@ func TestNormalizeComment(t *testing.T) {
 		t.Error("long accepted")
 	}
 }
+
+func TestCacheKeyDistinguishesEveryFilterAndCursor(t *testing.T) {
+	assignee := uint64(5)
+	cursor10, cursor20 := uint64(10), uint64(20)
+	filters := map[string]ListFilter{
+		"plain":           {TeamID: 1, Limit: 20},
+		"status":          {TeamID: 1, Limit: 20, Status: StatusDone},
+		"assignee":        {TeamID: 1, Limit: 20, AssigneeID: &assignee},
+		"cursor 10":       {TeamID: 1, Limit: 20, Cursor: &cursor10},
+		"cursor 20":       {TeamID: 1, Limit: 20, Cursor: &cursor20},
+		"cursor and page": {TeamID: 1, Limit: 20, Cursor: &cursor10, Offset: 5},
+		"limit":           {TeamID: 1, Limit: 10},
+		"offset":          {TeamID: 1, Limit: 20, Offset: 5},
+	}
+
+	seen := map[string]string{}
+	for name, filter := range filters {
+		key := filter.cacheKey()
+		if other, clash := seen[key]; clash {
+			t.Errorf("%q and %q share the cache key %q", name, other, key)
+		}
+		seen[key] = name
+	}
+}

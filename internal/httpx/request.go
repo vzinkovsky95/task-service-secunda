@@ -14,11 +14,12 @@ import (
 const maxBodyBytes = 1 << 20
 
 var statuses = map[apperr.Kind]int{
-	apperr.Invalid:      http.StatusBadRequest,
-	apperr.Unauthorized: http.StatusUnauthorized,
-	apperr.Forbidden:    http.StatusForbidden,
-	apperr.NotFound:     http.StatusNotFound,
-	apperr.Conflict:     http.StatusConflict,
+	apperr.Invalid:         http.StatusBadRequest,
+	apperr.Unauthorized:    http.StatusUnauthorized,
+	apperr.Forbidden:       http.StatusForbidden,
+	apperr.NotFound:        http.StatusNotFound,
+	apperr.Conflict:        http.StatusConflict,
+	apperr.TooManyRequests: http.StatusTooManyRequests,
 }
 
 func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {

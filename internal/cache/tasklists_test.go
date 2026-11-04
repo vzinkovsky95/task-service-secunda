@@ -10,12 +10,28 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	miniserver "github.com/alicebob/miniredis/v2/server"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/vzinkovsky95/task-service-secunda/internal/breaker"
 )
 
 func newTestCache(t *testing.T) (*TaskLists, *miniredis.Miniredis) {
 	t.Helper()
 	server := miniredis.RunT(t)
-	return NewTaskLists(NewClient(server.Addr())), server
+	guard := breaker.New(breaker.Config{Threshold: 1000, Cooldown: time.Minute})
+	return NewTaskLists(NewClient(server.Addr(), guard)), server
+}
+
+type testClock struct{ now time.Time }
+
+func (c *testClock) Now() time.Time          { return c.now }
+func (c *testClock) Advance(d time.Duration) { c.now = c.now.Add(d) }
+
+func newCacheWithBreaker(t *testing.T) (*TaskLists, *miniredis.Miniredis, *breaker.Breaker, *testClock) {
+	t.Helper()
+	server := miniredis.RunT(t)
+	clock := &testClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	guard := breaker.New(breaker.Config{Threshold: 3, Cooldown: 30 * time.Second, Now: clock.Now})
+	return NewTaskLists(NewClient(server.Addr(), guard)), server, guard, clock
 }
 
 func TestStoreThenLoadHits(t *testing.T) {
@@ -291,5 +307,73 @@ func TestClearPendingIgnoresOlderFailureNumber(t *testing.T) {
 	lists.clearPending(1, newer)
 	if _, ok := lists.pendingFailure(1); ok {
 		t.Error("current failure number did not clear the mark")
+	}
+}
+
+func TestOpenBreakerDefersInvalidationAndReadsSkipRedis(t *testing.T) {
+	lists, server, guard, clock := newCacheWithBreaker(t)
+	ctx := context.Background()
+
+	_, slot := lists.Load(ctx, 1, "f")
+	lists.Store(ctx, slot, []byte("old"))
+
+	server.Close()
+	for range 3 {
+		lists.Load(ctx, 2, "f")
+	}
+	if guard.State() != breaker.Open {
+		t.Fatalf("breaker state = %v, want open", guard.State())
+	}
+
+	started := time.Now()
+	lists.InvalidateTeam(ctx, 1)
+	data, unusable := lists.Load(ctx, 1, "f")
+	if elapsed := time.Since(started); elapsed > 100*time.Millisecond {
+		t.Errorf("invalidation and read with an open breaker took %v", elapsed)
+	}
+	if _, pending := lists.pendingFailure(1); !pending {
+		t.Fatal("invalidation under an open breaker was dropped instead of marked pending")
+	}
+	if data != nil || unusable.usable {
+		t.Error("a read of a pending team must go to the database")
+	}
+
+	if err := server.Restart(); err != nil {
+		t.Fatal(err)
+	}
+
+	var fresh Slot
+	for attempt := 0; attempt < 20 && guard.State() != breaker.Closed; attempt++ {
+		clock.Advance(31 * time.Second)
+		data, fresh = lists.Load(ctx, 1, "f")
+		time.Sleep(250 * time.Millisecond)
+	}
+	if data != nil {
+		t.Errorf("served %q that predates the deferred invalidation", data)
+	}
+	if fresh.key == slot.key {
+		t.Error("generation did not move after the deferred invalidation")
+	}
+	if _, pending := lists.pendingFailure(1); pending {
+		t.Error("pending mark survived a successful retry")
+	}
+	if guard.State() != breaker.Closed {
+		t.Errorf("breaker state = %v, want closed after a successful probe", guard.State())
+	}
+}
+
+func TestBreakerStaysOpenWhileRedisIsStillDown(t *testing.T) {
+	lists, server, guard, clock := newCacheWithBreaker(t)
+	ctx := context.Background()
+	server.Close()
+	for range 3 {
+		lists.Load(ctx, 1, "f")
+	}
+
+	clock.Advance(31 * time.Second)
+	lists.Load(ctx, 1, "f")
+
+	if guard.State() != breaker.Open {
+		t.Errorf("breaker state = %v, want open again after a failed probe", guard.State())
 	}
 }

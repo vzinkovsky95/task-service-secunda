@@ -163,7 +163,23 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	for _, t := range tasks {
 		items = append(items, toTaskResponse(t))
 	}
-	httpx.WriteJSON(w, http.StatusOK, httpx.NewPage(items, params, total))
+	httpx.WriteJSON(w, http.StatusOK, taskPageResponse{
+		Page:       httpx.NewPage(items, params, total),
+		NextCursor: nextCursor(tasks, params.Offset, total),
+	})
+}
+
+type taskPageResponse struct {
+	httpx.Page[taskResponse]
+	NextCursor *uint64 `json:"next_cursor"`
+}
+
+func nextCursor(tasks []Task, offset, total int) *uint64 {
+	if len(tasks) == 0 || offset+len(tasks) >= total {
+		return nil
+	}
+	last := tasks[len(tasks)-1].ID
+	return &last
 }
 
 func parseListQuery(r *http.Request) (ListFilter, httpx.PageParams, error) {
@@ -191,6 +207,16 @@ func parseListQuery(r *http.Request) (ListFilter, httpx.PageParams, error) {
 			return ListFilter{}, params, invalid("assignee_id must be a positive integer")
 		}
 		filter.AssigneeID = &assigneeID
+	}
+	if raw := query.Get("cursor"); raw != "" {
+		cursor, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || cursor == 0 {
+			return ListFilter{}, params, invalid("cursor must be a positive integer")
+		}
+		filter.Cursor = &cursor
+		if query.Has("offset") {
+			return ListFilter{}, params, invalid("cursor and offset cannot be used together")
+		}
 	}
 	return filter, params, nil
 }

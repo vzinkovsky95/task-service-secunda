@@ -86,6 +86,11 @@ func (r *Repository) List(ctx context.Context, q db.Querier, f ListFilter) ([]Ta
 		args = append(args, *f.AssigneeID)
 	}
 
+	if f.Cursor != nil {
+		where += " AND id < ?"
+		args = append(args, *f.Cursor)
+	}
+
 	var total int
 	if err := q.QueryRowContext(ctx, "SELECT COUNT(*) FROM tasks WHERE "+where, args...).Scan(&total); err != nil {
 		return nil, 0, err

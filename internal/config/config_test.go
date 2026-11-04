@@ -69,3 +69,42 @@ func TestLoadJWTTTL(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadRateLimitDefaultsAndProxies(t *testing.T) {
+	setRequired(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RateLimitAuthPerMinute != 10 || cfg.RateLimitAPIPerMinute != 120 || len(cfg.TrustedProxies) != 0 {
+		t.Errorf("defaults = %d, %d, %v", cfg.RateLimitAuthPerMinute, cfg.RateLimitAPIPerMinute, cfg.TrustedProxies)
+	}
+
+	t.Setenv("RATE_LIMIT_AUTH_PER_MINUTE", "3")
+	t.Setenv("TRUSTED_PROXIES", "10.0.0.0/8, 192.168.1.5 ,2001:db8::/32")
+	cfg, err = Load()
+	if err != nil || cfg.RateLimitAuthPerMinute != 3 || len(cfg.TrustedProxies) != 3 {
+		t.Fatalf("cfg = %+v, err = %v", cfg, err)
+	}
+	if got := cfg.TrustedProxies[1].String(); got != "192.168.1.5/32" {
+		t.Errorf("single address became %s", got)
+	}
+}
+
+func TestLoadRejectsBadRateLimitSettings(t *testing.T) {
+	cases := map[string]string{
+		"RATE_LIMIT_AUTH_PER_MINUTE": "0",
+		"RATE_LIMIT_API_PER_MINUTE":  "many",
+		"TRUSTED_PROXIES":            "10.0.0.0/8, nonsense",
+	}
+	for key, value := range cases {
+		t.Run(key, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv(key, value)
+			if _, err := Load(); err == nil {
+				t.Fatalf("%s=%q accepted", key, value)
+			}
+		})
+	}
+}

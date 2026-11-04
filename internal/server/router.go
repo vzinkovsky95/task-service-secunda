@@ -5,12 +5,15 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"net/netip"
+	"strconv"
 	"time"
 
 	"github.com/vzinkovsky95/task-service-secunda/internal/auth"
 	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/httpx"
 	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
+	"github.com/vzinkovsky95/task-service-secunda/internal/ratelimit"
 	"github.com/vzinkovsky95/task-service-secunda/internal/stats"
 	"github.com/vzinkovsky95/task-service-secunda/internal/task"
 	"github.com/vzinkovsky95/task-service-secunda/internal/team"
@@ -18,23 +21,34 @@ import (
 )
 
 type Deps struct {
-	Logger *slog.Logger
-	DB     *sql.DB
-	Tokens *auth.Tokens
-	Lists  *cache.TaskLists
+	Logger         *slog.Logger
+	DB             *sql.DB
+	Tokens         *auth.Tokens
+	Lists          *cache.TaskLists
+	Limiter        *ratelimit.Limiter
+	TrustedProxies []netip.Prefix
+	AuthPerMinute  int
+	APIPerMinute   int
 }
 
 func New(deps Deps) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health(deps.DB))
 
-	authed := auth.Require(deps.Tokens)
-
-	users, err := user.NewService(user.NewRepository(deps.DB), deps.Tokens)
-	if err != nil {
-		panic(err)
+	perMinute := func(scope string, limit int) ratelimit.Rule {
+		return ratelimit.Rule{Scope: scope, Limit: limit, Window: time.Minute}
 	}
-	user.NewHandler(users).Routes(mux)
+	byIP := ratelimit.ByClientIP(deps.TrustedProxies)
+	byUser := func(r *http.Request) string { return strconv.FormatUint(auth.UserID(r.Context()), 10) }
+	limitAPI := deps.Limiter.Middleware(perMinute("api", deps.APIPerMinute), byUser)
+	requireToken := auth.Require(deps.Tokens)
+	authed := func(next http.HandlerFunc) http.HandlerFunc { return requireToken(limitAPI(next)) }
+
+	users := user.NewService(user.NewRepository(deps.DB), deps.Tokens)
+	user.NewHandler(users).Routes(mux,
+		deps.Limiter.Middleware(perMinute("register", deps.AuthPerMinute), byIP),
+		deps.Limiter.Middleware(perMinute("login", deps.AuthPerMinute), byIP),
+	)
 
 	teamRepo := team.NewRepository()
 	taskRepo := task.NewRepository()

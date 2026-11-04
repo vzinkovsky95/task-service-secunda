@@ -9,10 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
-
 	"github.com/vzinkovsky95/task-service-secunda/internal/apperr"
-	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/task"
 	"github.com/vzinkovsky95/task-service-secunda/internal/team"
 	"github.com/vzinkovsky95/task-service-secunda/internal/testdb"
@@ -35,7 +32,7 @@ func newMembershipFixture(t *testing.T) *membershipFixture {
 	pool := testdb.New(t)
 	seed := testdb.NewSeeder(t, pool)
 
-	lists := cache.NewTaskLists(cache.NewClient(miniredis.RunT(t).Addr()))
+	lists := testdb.NewLists(t)
 	logs := &testdb.Logs{}
 	f := &membershipFixture{
 		pool:  pool,

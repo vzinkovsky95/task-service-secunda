@@ -1,6 +1,8 @@
 // Единая ошибка входа для «нет пользователя» и «неверный пароль»; при
 // отсутствии пользователя пароль сверяется с фиктивным хешем, чтобы время
-// ответа не выдавало наличие email.
+// ответа не выдавало наличие email. Хеш задан готовой константой, а не считается
+// при старте; его стоимость обязана совпадать с bcrypt.DefaultCost, иначе
+// сравнение времени теряет смысл, и это проверяет тест.
 
 package user
 
@@ -17,18 +19,15 @@ import (
 	"github.com/vzinkovsky95/task-service-secunda/internal/db"
 )
 
+const dummyHash = "$2a$10$2ldZdiocjjTABWZ5bVoWw.nhApsyiUU/JCdOpeQSEqOJxhxVQE6Wq"
+
 type Service struct {
-	repo      *Repository
-	tokens    *auth.Tokens
-	dummyHash []byte
+	repo   *Repository
+	tokens *auth.Tokens
 }
 
-func NewService(repo *Repository, tokens *auth.Tokens) (*Service, error) {
-	dummy, err := bcrypt.GenerateFromPassword([]byte("not-a-real-password"), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, err
-	}
-	return &Service{repo: repo, tokens: tokens, dummyHash: dummy}, nil
+func NewService(repo *Repository, tokens *auth.Tokens) *Service {
+	return &Service{repo: repo, tokens: tokens}
 }
 
 func (s *Service) Register(ctx context.Context, rawEmail, password, rawName string) (User, error) {
@@ -64,13 +63,13 @@ func (s *Service) Login(ctx context.Context, rawEmail, password string) (string,
 
 	email, err := normalizeEmail(rawEmail)
 	if err != nil {
-		bcrypt.CompareHashAndPassword(s.dummyHash, []byte(password))
+		bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(password))
 		return "", time.Time{}, invalidCredentials
 	}
 
 	u, err := s.repo.ByEmail(ctx, email)
 	if errors.Is(err, sql.ErrNoRows) {
-		bcrypt.CompareHashAndPassword(s.dummyHash, []byte(password))
+		bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(password))
 		return "", time.Time{}, invalidCredentials
 	}
 	if err != nil {

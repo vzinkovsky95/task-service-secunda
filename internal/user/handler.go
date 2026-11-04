@@ -15,9 +15,9 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/v1/register", h.register)
-	mux.HandleFunc("POST /api/v1/login", h.login)
+func (h *Handler) Routes(mux *http.ServeMux, limitRegister, limitLogin func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("POST /api/v1/register", limitRegister(h.register))
+	mux.HandleFunc("POST /api/v1/login", limitLogin(h.login))
 }
 
 type registerRequest struct {

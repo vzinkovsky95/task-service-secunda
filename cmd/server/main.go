@@ -14,6 +14,7 @@ import (
 	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/config"
 	"github.com/vzinkovsky95/task-service-secunda/internal/db"
+	"github.com/vzinkovsky95/task-service-secunda/internal/ratelimit"
 	"github.com/vzinkovsky95/task-service-secunda/internal/server"
 )
 
@@ -45,7 +46,8 @@ func run() error {
 	}
 	defer pool.Close()
 
-	redisClient := cache.NewClient(cfg.RedisAddr)
+	cache.UseStructuredLogs()
+	redisClient := cache.NewClient(cfg.RedisAddr, cache.NewGuard(logger))
 	defer redisClient.Close()
 
 	srv := &http.Server{
@@ -55,6 +57,11 @@ func run() error {
 			DB:     pool,
 			Tokens: auth.NewTokens(cfg.JWTSecret, cfg.JWTTTL),
 			Lists:  cache.NewTaskLists(redisClient),
+
+			Limiter:        ratelimit.NewLimiter(redisClient, time.Now),
+			TrustedProxies: cfg.TrustedProxies,
+			AuthPerMinute:  cfg.RateLimitAuthPerMinute,
+			APIPerMinute:   cfg.RateLimitAPIPerMinute,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

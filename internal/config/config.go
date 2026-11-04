@@ -6,7 +6,10 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -21,6 +24,10 @@ type Config struct {
 	JWTSecret string
 	JWTTTL    time.Duration
 	RedisAddr string
+
+	RateLimitAuthPerMinute int
+	RateLimitAPIPerMinute  int
+	TrustedProxies         []netip.Prefix
 }
 
 func Load() (Config, error) {
@@ -60,7 +67,49 @@ func Load() (Config, error) {
 	cfg.MySQL.Loc = time.UTC
 	cfg.MySQL.Collation = db.Collation
 
+	if cfg.RateLimitAuthPerMinute, err = positiveInt("RATE_LIMIT_AUTH_PER_MINUTE", 10); err != nil {
+		return Config{}, err
+	}
+	if cfg.RateLimitAPIPerMinute, err = positiveInt("RATE_LIMIT_API_PER_MINUTE", 120); err != nil {
+		return Config{}, err
+	}
+	if cfg.TrustedProxies, err = parseProxies(os.Getenv("TRUSTED_PROXIES")); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
+}
+
+func positiveInt(key string, fallback int) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return value, nil
+}
+
+func parseProxies(raw string) ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if prefix, err := netip.ParsePrefix(item); err == nil {
+			prefixes = append(prefixes, prefix.Masked())
+			continue
+		}
+		addr, err := netip.ParseAddr(item)
+		if err != nil {
+			return nil, fmt.Errorf("TRUSTED_PROXIES: %q is neither an IP nor a CIDR", item)
+		}
+		prefixes = append(prefixes, netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen()))
+	}
+	return prefixes, nil
 }
 
 func getenv(key, fallback string) string {
