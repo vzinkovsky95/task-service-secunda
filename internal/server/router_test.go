@@ -79,6 +79,7 @@ func TestProtectedRoutesRequireToken(t *testing.T) {
 		{http.MethodGet, "/api/v1/tasks/1/history"},
 		{http.MethodGet, "/api/v1/tasks/1/comments"},
 		{http.MethodPost, "/api/v1/tasks/1/comments"},
+		{http.MethodGet, "/api/v1/teams/1/stats"},
 	}
 	for _, route := range routes {
 		rec := httptest.NewRecorder()

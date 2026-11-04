@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+
+	"github.com/vzinkovsky95/task-service-secunda/internal/db"
 )
 
 type Config struct {
@@ -56,7 +58,7 @@ func Load() (Config, error) {
 	cfg.MySQL.DBName = required["MYSQL_DATABASE"]
 	cfg.MySQL.ParseTime = true
 	cfg.MySQL.Loc = time.UTC
-	cfg.MySQL.Collation = "utf8mb4_unicode_ci"
+	cfg.MySQL.Collation = db.Collation
 
 	return cfg, nil
 }

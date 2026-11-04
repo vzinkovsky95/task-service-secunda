@@ -5,9 +5,10 @@
 //
 // Порядок блокировок общий с пакетом task: строка команды, затем строки
 // участников, затем строки задач. Удаление участника берёт команду FOR UPDATE и
-// не пересекается с созданием и обновлением задач; остальные операции над
-// участниками берут её FOR SHARE, потому что вставка в team_members и так
-// берёт эту строку по внешнему ключу, и брать её позже значит создать цикл.
+// не пересекается с созданием и обновлением задач. Приглашение берёт её FOR
+// SHARE: вставка в team_members и так берёт эту строку по внешнему ключу, и
+// брать её позже значит создать цикл с удалением. Смене роли команда не нужна:
+// UPDATE роли внешние ключи не проверяет, и цикла нет.
 
 package team
 
@@ -133,9 +134,6 @@ func (s *Service) ChangeRole(ctx context.Context, actorID, teamID, targetID uint
 	}
 
 	err := db.InTx(ctx, s.pool, func(tx *sql.Tx) error {
-		if err := s.repo.ShareTeam(ctx, tx, teamID); err != nil {
-			return err
-		}
 		roles, err := s.repo.LockRoles(ctx, tx, teamID, actorID, targetID)
 		if err != nil {
 			return err

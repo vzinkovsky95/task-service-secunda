@@ -64,3 +64,12 @@ func TestRoleChanges(t *testing.T) {
 		t.Error("only admin and member are assignable")
 	}
 }
+
+func TestCanViewStats(t *testing.T) {
+	want := map[Role]bool{Owner: true, Admin: true, Member: false, "": false}
+	for role, expected := range want {
+		if got := CanViewStats(role); got != expected {
+			t.Errorf("CanViewStats(%q) = %v", role, got)
+		}
+	}
+}

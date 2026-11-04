@@ -11,6 +11,7 @@ import (
 	"github.com/vzinkovsky95/task-service-secunda/internal/cache"
 	"github.com/vzinkovsky95/task-service-secunda/internal/httpx"
 	"github.com/vzinkovsky95/task-service-secunda/internal/logx"
+	"github.com/vzinkovsky95/task-service-secunda/internal/stats"
 	"github.com/vzinkovsky95/task-service-secunda/internal/task"
 	"github.com/vzinkovsky95/task-service-secunda/internal/team"
 	"github.com/vzinkovsky95/task-service-secunda/internal/user"
@@ -43,6 +44,9 @@ func New(deps Deps) http.Handler {
 
 	tasks := task.NewService(deps.DB, taskRepo, teamRepo, deps.Lists)
 	task.NewHandler(tasks).Routes(mux, authed)
+
+	reports := stats.NewService(deps.DB, teamRepo, stats.NewRepository(), time.Now)
+	stats.NewHandler(reports).Routes(mux, authed)
 
 	return httpx.Chain(unmatched{mux},
 		httpx.WithRequestID,

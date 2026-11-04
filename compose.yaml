@@ -71,7 +71,7 @@ services:
       retries: 10
       start_period: 5s
 
-  tools:
+  tools: &go-tool
     image: golang:1.26
     profiles: ["tools"]
     mem_limit: 768m
@@ -85,6 +85,19 @@ services:
     volumes:
       - .:/src
       - gocache:/go
+
+  integration:
+    <<: *go-tool
+    mem_limit: 1g
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      GOFLAGS: -buildvcs=false -tags=integration
+      GOCACHE: /go/cache
+      HOME: /tmp
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
 
 volumes:
   mysql-data:

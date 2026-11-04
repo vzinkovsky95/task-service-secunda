@@ -3,6 +3,7 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -15,8 +16,12 @@ const (
 	StatusDone       Status = "done"
 )
 
+func Statuses() []Status {
+	return []Status{StatusTodo, StatusInProgress, StatusDone}
+}
+
 func (s Status) valid() bool {
-	return s == StatusTodo || s == StatusInProgress || s == StatusDone
+	return slices.Contains(Statuses(), s)
 }
 
 type Field string

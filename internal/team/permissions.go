@@ -27,6 +27,8 @@ var roleChangers = []Role{Owner}
 
 var assignable = []Role{Admin, Member}
 
+var statsViewers = []Role{Owner, Admin}
+
 func canInvite(actor, invited Role) bool {
 	return slices.Contains(invitable[actor], invited)
 }
@@ -49,4 +51,8 @@ func canChangeRoleOf(target Role) bool {
 
 func isAssignable(role Role) bool {
 	return slices.Contains(assignable, role)
+}
+
+func CanViewStats(role Role) bool {
+	return slices.Contains(statsViewers, role)
 }

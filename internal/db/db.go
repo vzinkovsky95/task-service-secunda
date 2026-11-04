@@ -1,3 +1,6 @@
+// Collation соединения совпадает с умолчанием схемы MySQL 8: при расхождении
+// выражения над колонками таблиц в UNION падают с «Illegal mix of collations».
+
 package db
 
 import (
@@ -8,6 +11,8 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 )
+
+const Collation = "utf8mb4_0900_ai_ci"
 
 func Open(ctx context.Context, cfg *mysql.Config) (*sql.DB, error) {
 	connector, err := mysql.NewConnector(cfg)
