@@ -1,0 +1,87 @@
+# Проверки на каждый пуш и pull request: сборка, форматирование, vet, юнит и
+# интеграционные тесты на настоящем MySQL, затем сквозной прогон scripts/demo.sh
+# на поднятом через docker compose стеке с демо-данными.
+# Действия закреплены по полному SHA коммита (checkout v7.0.1, setup-go v7.0.0).
+# Пароль MySQL в задании test относится к одноразовому контейнеру внутри
+# раннера и ничего не защищает.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -pci-root-password --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Formatting (gofmt)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Vet
+        run: |
+          go vet ./...
+          go vet -tags integration ./...
+      - name: No comments between code lines
+        run: |
+          if grep -rnE '^\s+//' --include='*.go' .; then
+            echo "Comments are allowed only at the top of a file"
+            exit 1
+          fi
+      - name: Unit tests
+        run: go test -race -count=1 ./...
+      - name: Integration tests on a real MySQL
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        run: go test -race -count=1 -timeout 15m -tags integration ./...
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Start the stack with demo data
+        run: |
+          scripts/init-env.sh
+          docker compose --profile demo up --build -d
+          docker compose --profile demo wait seed
+      - name: Wait for the service
+        run: curl --retry 30 --retry-delay 2 --retry-connrefused -fsS http://127.0.0.1:18080/healthz
+      - name: Run scripts/demo.sh
+        run: scripts/demo.sh
+      - name: Logs
+        if: failure()
+        run: docker compose --profile demo logs --no-color --tail=200
