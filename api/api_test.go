@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -109,5 +110,31 @@ func TestSpecHandlerServesTheEmbeddedFile(t *testing.T) {
 	}
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/yaml") {
 		t.Errorf("content type = %q", ct)
+	}
+}
+
+func TestPagesSiteUsesTheSamePinnedSwaggerUIAsTheService(t *testing.T) {
+	site, err := os.ReadFile("../site/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(site)
+
+	for _, attribute := range regexp.MustCompile(`integrity="sha384-[^"]+"`).FindAllString(uiPage, -1) {
+		if !strings.Contains(page, attribute) {
+			t.Errorf("site/index.html lacks %s used by the service page", attribute)
+		}
+	}
+	if got := strings.Count(page, "swagger-ui-dist@"+SwaggerUIVersion+"/"); got != 2 {
+		t.Errorf("site/index.html references the pinned version %d times, want 2", got)
+	}
+	if strings.Contains(page, "@latest") {
+		t.Error("site/index.html must be pinned to an exact version")
+	}
+	if !strings.Contains(page, "supportedSubmitMethods: []") {
+		t.Error("Try it out must be disabled on a static page without a backend")
+	}
+	if !strings.Contains(page, "не работающий стенд") || !strings.Contains(page, `url: "./openapi.yaml"`) {
+		t.Error("the page must say it is documentation only and load the published spec")
 	}
 }

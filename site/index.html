@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Service API: документация</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css" integrity="sha384-wxLW6kwyHktdDGr6Pv1zgm/VGJh99lfUbzSn6HNHBENZlCN7W602k9VkGdxuFvPn" crossorigin="anonymous">
+<style>
+body { margin: 0; }
+.notice { background: #fff8e1; border-bottom: 1px solid #f0d98a; color: #4a3b00; font: 15px/1.5 system-ui, sans-serif; padding: 12px 20px; }
+.notice a { color: inherit; font-weight: 600; }
+.swagger-ui .auth-wrapper { display: none; }
+</style>
+</head>
+<body>
+<div class="notice">
+Это документация API, а не работающий стенд: запросы с этой страницы не выполняются.
+Чтобы пробовать API, запустите сервис по инструкции в
+<a href="https://github.com/vzinkovsky95/task-service-secunda#запуск">README</a>
+и откройте страницу <code>/docs</code> на своём запуске, там Try it out и Authorize работают по-настоящему.
+</div>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" integrity="sha384-wmyclcVGX/WhUkdkATwhaK1X1JtiNrr2EoYJ+diV3vj4v6OC5yCeSu+yW13SYJep" crossorigin="anonymous"></script>
+<script>
+window.onload = function () {
+  window.ui = SwaggerUIBundle({
+    url: "./openapi.yaml",
+    dom_id: "#swagger-ui",
+    deepLinking: true,
+    docExpansion: "list",
+    supportedSubmitMethods: []
+  });
+};
+</script>
+</body>
+</html>
