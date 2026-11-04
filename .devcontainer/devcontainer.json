@@ -1,0 +1,27 @@
+{
+  "name": "Task Service",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "16gb"
+  },
+  "postCreateCommand": "scripts/init-env.sh && docker compose --profile demo up --build -d && docker compose --profile demo wait seed",
+  "postStartCommand": "docker compose --profile demo up -d",
+  "forwardPorts": [18080],
+  "portsAttributes": {
+    "18080": {
+      "label": "Swagger UI",
+      "protocol": "http",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["golang.go"]
+    }
+  }
+}
