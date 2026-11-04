@@ -1,5 +1,7 @@
 # Task Service
 
+[![CI](https://github.com/vzinkovsky95/task-service-secunda/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vzinkovsky95/task-service-secunda/actions/workflows/ci.yml)
+
 REST API для управления задачами в командах: роли (владелец, администратор, участник), история изменений
 каждой задачи, комментарии, кеш списка задач в Redis и SQL-отчёт по команде.
 
@@ -80,6 +82,8 @@ curl http://127.0.0.1:18080/healthz
 
 - Swagger UI: <http://127.0.0.1:18080/docs>
 - Спецификация: <http://127.0.0.1:18080/openapi.yaml> (файл `api/openapi.yaml`, написан вручную)
+- Документация на GitHub Pages: <https://vzinkovsky95.github.io/task-service-secunda/>. Это справочник: запросы с этой страницы
+  не выполняются, пробовать API нужно на своём запуске.
 
 Чтобы пробовать защищённые маршруты прямо в Swagger UI: выполните `POST /api/v1/login`, скопируйте поле `token`
 из ответа, нажмите **Authorize** и вставьте токен (слово `Bearer` не нужно). Запросы уходят на тот же адрес,
