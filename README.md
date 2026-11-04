@@ -22,12 +22,12 @@ REST API для управления задачами в командах: ро�
 в контейнерах.
 
 ```bash
-cp .env.example .env
-sed -i "s/^MYSQL_PASSWORD=.*/MYSQL_PASSWORD=$(openssl rand -hex 12)/; s/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=$(openssl rand -hex 12)/; s/^JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" .env
+scripts/init-env.sh
 docker compose up --build -d
 ```
 
-Вторая команда подставляет случайные пароли и секрет JWT в `.env` (Linux; на macOS используйте `sed -i ''`).
+Первая команда создаёт `.env` из `.env.example` и подставляет случайные пароли MySQL и секрет JWT. Скрипт работает
+на Linux и macOS, существующий `.env` не перезаписывает (чтобы создать заново, запустите с `--force`).
 Секретов по умолчанию нет: без `JWT_SECRET` и данных MySQL сервис не стартует.
 
 Через минуту все три контейнера должны быть `healthy`:
