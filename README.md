@@ -7,6 +7,8 @@ REST API для управления задачами в командах: ро�
 
 Стек: Go 1.26 (стандартный `net/http`, `database/sql`, без ORM), MySQL 8.4, Redis 7, Docker Compose.
 
+https://github.com/user-attachments/assets/1e37ae6f-e7c7-4523-bfbf-de9b05f710a6
+
 - [Запуск](#запуск)
 - [Конфигурация](#конфигурация)
 - [Документация API](#документация-api)
